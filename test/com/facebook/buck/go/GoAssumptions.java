@@ -16,10 +16,9 @@
 
 package com.facebook.buck.go;
 
-import static org.junit.Assume.assumeNoException;
-
 import com.facebook.buck.cli.FakeBuckConfig;
 import com.facebook.buck.model.FlavorDomain;
+import com.facebook.buck.testutil.FakeProjectFilesystem;
 import com.facebook.buck.testutil.TestConsole;
 import com.facebook.buck.util.DefaultProcessExecutor;
 import com.facebook.buck.util.HumanReadableException;
@@ -30,16 +29,21 @@ import java.io.IOException;
 
 abstract class GoAssumptions {
   public static void assumeGoCompilerAvailable() throws InterruptedException, IOException {
-    Throwable exception = null;
-    try {
-      ProcessExecutor executor = new DefaultProcessExecutor(new TestConsole());
-      new GoBuckConfig(
-          FakeBuckConfig.builder().build(),
-          executor,
-          FlavorDomain.from("Cxx", ImmutableSet.of())).getCompiler();
-    } catch (HumanReadableException e) {
-      exception = e;
+    ProcessExecutor executor = new DefaultProcessExecutor(new TestConsole());
+
+    FakeBuckConfig.Builder baseConfig = FakeBuckConfig.builder();
+    FakeProjectFilesystem fs = new FakeProjectFilesystem();
+    String goRoot = System.getenv("GOROOT");
+    if (goRoot != null) {
+      baseConfig.setSections("[go]", "  root = " + goRoot);
+      // This should really act like some kind of bind-mount onto the real filesystem.
+      // But this is currently enough to check whether Go seems to be installed, so we'll live...
+      fs.mkdirs(fs.getRootPath().getFileSystem().getPath(goRoot));
     }
-    assumeNoException(exception);
+    baseConfig.setFilesystem(fs);
+    new GoBuckConfig(
+        baseConfig.build(),
+        executor,
+        FlavorDomain.from("Cxx", ImmutableSet.of())).getCompiler();
   }
 }
